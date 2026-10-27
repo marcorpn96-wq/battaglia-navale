@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Battaglia navale</title>
+<style>
+  :root {
+    --mare: #0c2430;
+    --acqua: #17414f;
+    --acqua-chiara: #1f5566;
+    --carta: #e8e2cf;
+    --colpito: #e0553a;
+    --mancato: #7fa9b5;
+    --nave: #f2c14e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--mare);
+    color: var(--carta);
+    font-family: Georgia, "Times New Roman", serif;
+  }
+  main { width: min(92vw, 420px); padding: 1.5rem 0; }
+  h1 { font-size: 2rem; margin: 0 0 .25rem; font-weight: 700; letter-spacing: .01em; }
+  .regola { margin: 0 0 1.25rem; opacity: .8; line-height: 1.5; }
+  .tabella {
+    display: grid;
+    grid-template-columns: 1.5rem repeat(5, 1fr);
+    gap: 6px;
+    align-items: center;
+    text-align: center;
+  }
+  .indice { opacity: .6; font-size: .9rem; }
+  .cella {
+    aspect-ratio: 1;
+    border: 1px solid var(--acqua-chiara);
+    border-radius: 4px;
+    background: var(--acqua);
+    color: var(--carta);
+    font: 700 1.5rem Georgia, serif;
+    cursor: pointer;
+  }
+  .cella:hover:not(:disabled) { background: var(--acqua-chiara); }
+  .cella:focus-visible { outline: 3px solid var(--nave); outline-offset: 2px; }
+  .cella:disabled { cursor: default; }
+  .cella.colpito { background: var(--colpito); border-color: var(--colpito); }
+  .cella.mancato { color: var(--mancato); }
+  .cella.nave { background: var(--nave); border-color: var(--nave); color: var(--mare); }
+  .stato { display: flex; justify-content: space-between; margin: 1.25rem 0 .5rem; font-size: 1.05rem; }
+  #messaggio { min-height: 3rem; margin: 0 0 1rem; font-size: 1.2rem; line-height: 1.4; }
+  button.nuova {
+    padding: .6rem 1.2rem;
+    border: 2px solid var(--carta);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--carta);
+    font: 700 1rem Georgia, serif;
+    cursor: pointer;
+  }
+  button.nuova:hover { background: var(--carta); color: var(--mare); }
+  button.nuova:focus-visible { outline: 3px solid var(--nave); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Battaglia navale</h1>
+  <p class="regola">Una nave di 3 celle è nascosta in orizzontale. Affondala con al massimo 15 colpi.</p>
+
+  <div class="tabella" id="tabella" role="group" aria-label="Campo di gioco"></div>
+
+  <div class="stato">
+    <span>Colpi rimasti: <strong id="rimasti"></strong></span>
+  </div>
+  <p id="messaggio" role="status" aria-live="polite"></p>
+  <button class="nuova" id="nuovaPartita">Nuova partita</button>
+</main>
+
+<script>
+  const DIM = 5;
+  const LUNGHEZZA_NAVE = 3;
+  const MAX_COLPI = 15;
+
+  let campo;          // quello che vede il giocatore
+  let navi;           // il segreto: contiene la nave
+  let colpi;          // colpi validi sparati
+  let colpite;        // celle della nave colpite
+  let partitaFinita;
+
+  // Crea una matrice DIM x DIM piena di acqua ("~")
+  function creaGriglia() {
+    const griglia = [];
+    for (let indiceRiga = 0; indiceRiga < DIM; indiceRiga++) {
+      const riga = [];
+      for (let indiceColonna = 0; indiceColonna < DIM; indiceColonna++) {
+        riga.push("~");
+      }
+      griglia.push(riga);
+    }
+    return griglia;
+  }
+
+  // Prepara una nuova partita con la nave in posizione casuale
+  function iniziaPartita() {
+    campo = creaGriglia();
+    navi = creaGriglia();
+    colpi = 0;
+    colpite = 0;
+    partitaFinita = false;
+
+    const rigaNave = Math.floor(Math.random() * DIM);
+    const colonnaNave = Math.floor(Math.random() * (DIM - LUNGHEZZA_NAVE + 1));
+    for (let indiceCella = 0; indiceCella < LUNGHEZZA_NAVE; indiceCella++) {
+      navi[rigaNave][colonnaNave + indiceCella] = "N";
+    }
+
+    disegna();
+    mostraMessaggio("Tocca una cella per sparare.");
+  }
+
+  function mostraMessaggio(testo) {
+    document.getElementById("messaggio").textContent = testo;
+  }
+
+  // Ridisegna la griglia a partire dallo stato di campo (e di navi a partita persa)
+  function disegna() {
+    const tabella = document.getElementById("tabella");
+    tabella.innerHTML = "";
+
+    // Riga di intestazione con gli indici delle colonne
+    tabella.appendChild(creaIndice(""));
+    for (let indiceColonna = 0; indiceColonna < DIM; indiceColonna++) {
+      tabella.appendChild(creaIndice(indiceColonna));
+    }
+
+    for (let indiceRiga = 0; indiceRiga < DIM; indiceRiga++) {
+      tabella.appendChild(creaIndice(indiceRiga));
+      for (let indiceColonna = 0; indiceColonna < DIM; indiceColonna++) {
+        tabella.appendChild(creaCella(indiceRiga, indiceColonna));
+      }
+    }
+
+    document.getElementById("rimasti").textContent = MAX_COLPI - colpi;
+  }
+
+  function creaIndice(testo) {
+    const indice = document.createElement("span");
+    indice.className = "indice";
+    indice.textContent = testo;
+    return indice;
+  }
+
+  function creaCella(indiceRiga, indiceColonna) {
+    const cella = document.createElement("button");
+    const simbolo = campo[indiceRiga][indiceColonna];
+    cella.className = "cella";
+    cella.textContent = simbolo;
+    cella.setAttribute("aria-label", "Riga " + indiceRiga + ", colonna " + indiceColonna);
+
+    if (simbolo === "X") cella.classList.add("colpito");
+    if (simbolo === "O") cella.classList.add("mancato");
+
+    // A partita persa, mostra dove era la nave
+    const naveNascosta = partitaFinita && simbolo === "~" && navi[indiceRiga][indiceColonna] === "N";
+    if (naveNascosta) {
+      cella.textContent = "N";
+      cella.classList.add("nave");
+    }
+
+    cella.disabled = partitaFinita;
+    cella.addEventListener("click", function () {
+      spara(indiceRiga, indiceColonna);
+    });
+    return cella;
+  }
+
+  function spara(indiceRiga, indiceColonna) {
+    if (partitaFinita) return;
+
+    // Colpo non valido: cella già colpita, non conta come colpo
+    if (campo[indiceRiga][indiceColonna] !== "~") {
+      mostraMessaggio("Hai già sparato qui, riprova");
+      return;
+    }
+
+    colpi++;
+
+    if (navi[indiceRiga][indiceColonna] === "N") {
+      campo[indiceRiga][indiceColonna] = "X";
+      colpite++;
+      mostraMessaggio("Colpito!");
+    } else {
+      campo[indiceRiga][indiceColonna] = "O";
+      mostraMessaggio("Mancato!");
+    }
+
+    // Fine partita: si controlla colpite, così affondare con l'ultimo colpo è una vittoria
+    if (colpite === LUNGHEZZA_NAVE) {
+      partitaFinita = true;
+      mostraMessaggio("Nave affondata in " + colpi + " colpi!");
+    } else if (colpi === MAX_COLPI) {
+      partitaFinita = true;
+      mostraMessaggio("Hai perso! La nave era qui.");
+    }
+
+    disegna();
+  }
+
+  document.getElementById("nuovaPartita").addEventListener("click", iniziaPartita);
+  iniziaPartita();
+</script>
+</body>
+</html>
